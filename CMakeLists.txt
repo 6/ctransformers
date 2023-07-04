@@ -4,6 +4,8 @@ project(ctransformers C CXX)
 set(CT_INSTRUCTIONS "avx2" CACHE STRING "avx2 | avx | basic")
 
 option(CT_CUBLAS "Use cuBLAS" OFF)
+# TODO: make this configurable? Autodetect Metal capability?
+option(CT_METAL "Use Metal" ON)
 set(CT_CUDA_DMMV_X "32" CACHE STRING "x stride for dmmv CUDA kernels")
 set(CT_CUDA_DMMV_Y "1" CACHE STRING "y block size for dmmv CUDA kernels")
 set(CT_CUDA_KQUANTS_ITER "2" CACHE STRING "iters/thread per block for Q2_K/Q6_K")
@@ -112,6 +114,25 @@ if (APPLE)
     else()
         message(WARNING "Accelerate framework not found")
     endif()
+endif()
+
+if (CT_METAL)
+    message(STATUS "===========> using Metal <===========")
+    find_library(FOUNDATION_LIBRARY         Foundation              REQUIRED)
+    find_library(METAL_FRAMEWORK            Metal                   REQUIRED)
+    find_library(METALKIT_FRAMEWORK         MetalKit                REQUIRED)
+    find_library(METALPERFORMANCE_FRAMEWORK MetalPerformanceShaders REQUIRED)
+
+    target_sources(ctransformers PRIVATE models/ggml/ggml-metal.m)
+    target_compile_definitions(ctransformers PRIVATE GGML_USE_METAL)
+    target_compile_definitions(ctransformers PRIVATE GGML_METAL_NDEBUG)
+
+    # copy ggml-metal.metal to bin directory
+    # TODO: is this needed?
+    configure_file(models/ggml/ggml-metal.metal bin/ggml-metal.metal COPYONLY)
+
+    # target_link_libraries(ggml PUBLIC Threads::Threads ${LLAMA_EXTRA_LIBS})
+    target_link_libraries(ctransformers PRIVATE ${FOUNDATION_LIBRARY} ${METAL_FRAMEWORK} ${METALKIT_FRAMEWORK} ${METALPERFORMANCE_FRAMEWORK})
 endif()
 
 if (CT_CUBLAS)
